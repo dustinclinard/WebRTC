@@ -32,7 +32,6 @@ export type PeerConfig = {
     <div class="toolbar">
       <button (click)="doJoin()" [disabled]="wsState==='connecting'">Join</button>
       <button (click)="hangup()">Hangup</button>
-      <button (click)="icedump()">ICE Dump</button>
       <button (click)="toggleStats()">{{ statsOn ? 'Stop' : 'Start' }} Stats</button>
     </div>
 
@@ -94,6 +93,7 @@ export class PeerPaneComponent implements OnInit, OnDestroy {
   private session?: PeerSession;
   private pendingSignals: any[] = [];
   private joined = false;
+  private processedSdpIds = new Set<string>();
   private _statsCb = (arr: any[]) => { this.iceText = JSON.stringify(arr, null, 2); };
 
   constructor(
@@ -127,8 +127,7 @@ export class PeerPaneComponent implements OnInit, OnDestroy {
         this.pendingSignals.push({ from, data });
         return;
       }
-      if ((data as any).sdp) this.session.handleRemoteSdp((data as any).sdp);
-      else if ((data as any).candidate) this.session.handleRemoteCandidate((data as any).candidate);
+      this.processSignalData(data);
     });
     if (this.autoJoin) setTimeout(()=>this.doJoin(), 0);
   }
@@ -143,6 +142,7 @@ export class PeerPaneComponent implements OnInit, OnDestroy {
 
   setupSession(){
     this.session?.close();
+    this.processedSdpIds.clear(); // Reset SDP tracking for new session
     this.session = this.rtc.createSession(this.config.initiator, this.config.stunUrl, {
       onSignal: (data)=> this.ngZone.run(() => this.signal.sendSignal(data)),
       onIceState: (s)=> this.ngZone.run(() => {
@@ -158,23 +158,39 @@ export class PeerPaneComponent implements OnInit, OnDestroy {
     // If there were any signals received before the session existed, replay them now
     if (this.pendingSignals.length) {
       for (const p of this.pendingSignals) {
-        const data = p.data;
-        if ((data as any).sdp) this.session.handleRemoteSdp((data as any).sdp);
-        else if ((data as any).candidate) this.session.handleRemoteCandidate((data as any).candidate);
+        this.processSignalData(p.data);
       }
       this.pendingSignals = [];
+    }
+  }
+
+  private processSignalData(data: any) {
+    if (!this.session) return;
+    
+    if (data.sdp) {
+      // Create a unique ID for this SDP to prevent duplicate processing
+      const sdpId = `${data.sdp.type}-${data.sdp.sdp.slice(0, 50)}`;
+      if (this.processedSdpIds.has(sdpId)) {
+        console.log(`[WebRTC] Ignoring duplicate SDP: ${data.sdp.type}`);
+        return;
+      }
+      this.processedSdpIds.add(sdpId);
+      this.log(`[WebRTC] Processing ${data.sdp.type} SDP`);
+      this.session.handleRemoteSdp(data.sdp);
+    } else if (data.candidate) {
+      this.session.handleRemoteCandidate(data.candidate);
     }
   }
 
   hangup(){
     try { this.session?.close(); } catch {}
     this.session = undefined; this.dcState = undefined; this.iceState = undefined;
+    this.processedSdpIds.clear();
   }
 
   send(){ if (this.session && this.sendText.trim()) { this.session.send(this.sendText); this.log(`[tx] ${this.sendText}`); this.sendText=''; } }
   canSend(){ return !!this.session && this.dcState === 'open'; }
 
-  icedump(){ this.iceVisible = true; if (this.session) this.session.startStatsLoop(this._statsCb); }
   toggleStats(){ this.statsOn = !this.statsOn; this.iceVisible = this.statsOn; if (this.session) (this.statsOn ? this.session.startStatsLoop(this._statsCb) : this.session.stopStatsLoop()); }
 
   log(msg: string){ 

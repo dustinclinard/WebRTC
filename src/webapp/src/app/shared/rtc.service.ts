@@ -48,16 +48,45 @@ export class PeerSession {
   }
 
   async handleRemoteSdp(sdp: RTCSessionDescriptionInit){
-    await this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
-    if (sdp.type === 'offer'){
-      const answer = await this.pc.createAnswer();
-      await this.pc.setLocalDescription(answer);
-      this.cb.onSignal({ sdp: this.pc.localDescription });
+    try {
+      // Check if we're in the right state for this type of SDP
+      if (sdp.type === 'offer') {
+        // We can accept offers in stable, have-local-offer, or have-remote-pranswer states
+        if (this.pc.signalingState === 'have-local-offer') {
+          console.warn('[WebRTC] Received offer while we have local offer - possible glare, ignoring');
+          return;
+        }
+      } else if (sdp.type === 'answer') {
+        // We should only accept answers when we have a local offer
+        if (this.pc.signalingState !== 'have-local-offer') {
+          console.warn(`[WebRTC] Received answer in wrong state: ${this.pc.signalingState}, ignoring`);
+          return;
+        }
+      }
+
+      await this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      
+      if (sdp.type === 'offer'){
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+        this.cb.onSignal({ sdp: this.pc.localDescription });
+      }
+    } catch (error) {
+      console.error(`[WebRTC] Failed to handle remote SDP (${sdp.type}):`, error);
     }
   }
 
   async handleRemoteCandidate(candidate: RTCIceCandidateInit){
-    try { await this.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+    try { 
+      // Check if remote description is set before adding ICE candidates
+      if (this.pc.remoteDescription) {
+        await this.pc.addIceCandidate(new RTCIceCandidate(candidate)); 
+      } else {
+        console.warn('[WebRTC] Received ICE candidate before remote description, ignoring');
+      }
+    } catch (error) {
+      console.error('[WebRTC] Failed to add ICE candidate:', error);
+    }
   }
 
   send(text: string){

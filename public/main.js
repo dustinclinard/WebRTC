@@ -137,7 +137,7 @@ class HomeComponent {
       template: function HomeComponent_Template(rf, ctx) {
         if (rf & 1) {
           _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelementStart"](0, "div", 0)(1, "h1");
-          _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵtext"](2, "WebRTC P2P Demo");
+          _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵtext"](2, "WebRTC STUN/P2P Demo");
           _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelementEnd"]();
           _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelementStart"](3, "div", 1);
           _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelement"](4, "app-peer-pane", 2)(5, "app-peer-pane", 2);
@@ -323,11 +323,11 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-function PeerPaneComponent_textarea_29_Template(rf, ctx) {
+function PeerPaneComponent_textarea_27_Template(rf, ctx) {
   if (rf & 1) {
     const _r1 = _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵgetCurrentView"]();
     _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](0, "textarea", 8);
-    _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_textarea_29_Template_textarea_ngModelChange_0_listener($event) {
+    _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_textarea_27_Template_textarea_ngModelChange_0_listener($event) {
       _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵrestoreView"](_r1);
       const ctx_r1 = _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵnextContext"]();
       _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayBindingSet"](ctx_r1.iceText, $event) || (ctx_r1.iceText = $event);
@@ -355,6 +355,7 @@ class PeerPaneComponent {
     this.sendText = '';
     this.pendingSignals = [];
     this.joined = false;
+    this.processedSdpIds = new Set();
     this._statsCb = arr => {
       this.iceText = JSON.stringify(arr, null, 2);
     };
@@ -392,7 +393,7 @@ class PeerPaneComponent {
         });
         return;
       }
-      if (data.sdp) this.session.handleRemoteSdp(data.sdp);else if (data.candidate) this.session.handleRemoteCandidate(data.candidate);
+      this.processSignalData(data);
     });
     if (this.autoJoin) setTimeout(() => this.doJoin(), 0);
   }
@@ -406,6 +407,7 @@ class PeerPaneComponent {
   }
   setupSession() {
     this.session?.close();
+    this.processedSdpIds.clear(); // Reset SDP tracking for new session
     this.session = this.rtc.createSession(this.config.initiator, this.config.stunUrl, {
       onSignal: data => this.ngZone.run(() => this.signal.sendSignal(data)),
       onIceState: s => this.ngZone.run(() => {
@@ -421,10 +423,25 @@ class PeerPaneComponent {
     // If there were any signals received before the session existed, replay them now
     if (this.pendingSignals.length) {
       for (const p of this.pendingSignals) {
-        const data = p.data;
-        if (data.sdp) this.session.handleRemoteSdp(data.sdp);else if (data.candidate) this.session.handleRemoteCandidate(data.candidate);
+        this.processSignalData(p.data);
       }
       this.pendingSignals = [];
+    }
+  }
+  processSignalData(data) {
+    if (!this.session) return;
+    if (data.sdp) {
+      // Create a unique ID for this SDP to prevent duplicate processing
+      const sdpId = `${data.sdp.type}-${data.sdp.sdp.slice(0, 50)}`;
+      if (this.processedSdpIds.has(sdpId)) {
+        console.log(`[WebRTC] Ignoring duplicate SDP: ${data.sdp.type}`);
+        return;
+      }
+      this.processedSdpIds.add(sdpId);
+      this.log(`[WebRTC] Processing ${data.sdp.type} SDP`);
+      this.session.handleRemoteSdp(data.sdp);
+    } else if (data.candidate) {
+      this.session.handleRemoteCandidate(data.candidate);
     }
   }
   hangup() {
@@ -434,6 +451,7 @@ class PeerPaneComponent {
     this.session = undefined;
     this.dcState = undefined;
     this.iceState = undefined;
+    this.processedSdpIds.clear();
   }
   send() {
     if (this.session && this.sendText.trim()) {
@@ -444,10 +462,6 @@ class PeerPaneComponent {
   }
   canSend() {
     return !!this.session && this.dcState === 'open';
-  }
-  icedump() {
-    this.iceVisible = true;
-    if (this.session) this.session.startStatsLoop(this._statsCb);
   }
   toggleStats() {
     this.statsOn = !this.statsOn;
@@ -496,7 +510,7 @@ class PeerPaneComponent {
       },
       standalone: true,
       features: [_angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵProvidersFeature"]([_signaling_service__WEBPACK_IMPORTED_MODULE_0__.SignalingService, _rtc_service__WEBPACK_IMPORTED_MODULE_1__.RtcService, _metrics_service__WEBPACK_IMPORTED_MODULE_2__.MetricsService]), _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵStandaloneFeature"]],
-      decls: 34,
+      decls: 32,
       vars: 17,
       consts: [[1, "card", "panel"], [1, "header"], [1, "tag"], [3, "ngClass"], [1, "toolbar"], [3, "click", "disabled"], [3, "click"], [1, "content"], ["readonly", "", 3, "ngModelChange", "ngModel"], ["readonly", "", 3, "ngModel", "ngModelChange", 4, "ngIf"], [1, "composer"], ["placeholder", "enter text...", 3, "ngModelChange", "ngModel"]],
       template: function PeerPaneComponent_Template(rf, ctx) {
@@ -536,34 +550,28 @@ class PeerPaneComponent {
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]();
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](23, "button", 6);
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵlistener"]("click", function PeerPaneComponent_Template_button_click_23_listener() {
-            return ctx.icedump();
-          });
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtext"](24, "ICE Dump");
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]();
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](25, "button", 6);
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵlistener"]("click", function PeerPaneComponent_Template_button_click_25_listener() {
             return ctx.toggleStats();
           });
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtext"](26);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtext"](24);
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]()();
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](27, "div", 7)(28, "textarea", 8);
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_Template_textarea_ngModelChange_28_listener($event) {
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](25, "div", 7)(26, "textarea", 8);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_Template_textarea_ngModelChange_26_listener($event) {
             _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayBindingSet"](ctx.logText, $event) || (ctx.logText = $event);
             return $event;
           });
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]();
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtemplate"](29, PeerPaneComponent_textarea_29_Template, 1, 1, "textarea", 9);
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](30, "div", 10)(31, "input", 11);
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_Template_input_ngModelChange_31_listener($event) {
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtemplate"](27, PeerPaneComponent_textarea_27_Template, 1, 1, "textarea", 9);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](28, "div", 10)(29, "input", 11);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayListener"]("ngModelChange", function PeerPaneComponent_Template_input_ngModelChange_29_listener($event) {
             _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtwoWayBindingSet"](ctx.sendText, $event) || (ctx.sendText = $event);
             return $event;
           });
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]();
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](32, "button", 5);
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵlistener"]("click", function PeerPaneComponent_Template_button_click_32_listener() {
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementStart"](30, "button", 5);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵlistener"]("click", function PeerPaneComponent_Template_button_click_30_listener() {
             return ctx.send();
           });
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtext"](33, "Send");
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtext"](31, "Send");
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵelementEnd"]()()()();
         }
         if (rf & 2) {
@@ -583,7 +591,7 @@ class PeerPaneComponent {
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtextInterpolate"](ctx.iceState || "-");
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵadvance"](2);
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵproperty"]("disabled", ctx.wsState === "connecting");
-          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵadvance"](7);
+          _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵadvance"](5);
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵtextInterpolate1"]("", ctx.statsOn ? "Stop" : "Start", " Stats");
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵadvance"]();
           _angular_core__WEBPACK_IMPORTED_MODULE_3__["ɵɵclassProp"]("has-ice", ctx.iceVisible)("no-ice", !ctx.iceVisible);
@@ -672,13 +680,31 @@ class PeerSession {
   handleRemoteSdp(sdp) {
     var _this2 = this;
     return (0,_Users_dustin_projects_WebRTC_src_webapp_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      yield _this2.pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      if (sdp.type === 'offer') {
-        const answer = yield _this2.pc.createAnswer();
-        yield _this2.pc.setLocalDescription(answer);
-        _this2.cb.onSignal({
-          sdp: _this2.pc.localDescription
-        });
+      try {
+        // Check if we're in the right state for this type of SDP
+        if (sdp.type === 'offer') {
+          // We can accept offers in stable, have-local-offer, or have-remote-pranswer states
+          if (_this2.pc.signalingState === 'have-local-offer') {
+            console.warn('[WebRTC] Received offer while we have local offer - possible glare, ignoring');
+            return;
+          }
+        } else if (sdp.type === 'answer') {
+          // We should only accept answers when we have a local offer
+          if (_this2.pc.signalingState !== 'have-local-offer') {
+            console.warn(`[WebRTC] Received answer in wrong state: ${_this2.pc.signalingState}, ignoring`);
+            return;
+          }
+        }
+        yield _this2.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        if (sdp.type === 'offer') {
+          const answer = yield _this2.pc.createAnswer();
+          yield _this2.pc.setLocalDescription(answer);
+          _this2.cb.onSignal({
+            sdp: _this2.pc.localDescription
+          });
+        }
+      } catch (error) {
+        console.error(`[WebRTC] Failed to handle remote SDP (${sdp.type}):`, error);
       }
     })();
   }
@@ -686,8 +712,15 @@ class PeerSession {
     var _this3 = this;
     return (0,_Users_dustin_projects_WebRTC_src_webapp_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield _this3.pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch {}
+        // Check if remote description is set before adding ICE candidates
+        if (_this3.pc.remoteDescription) {
+          yield _this3.pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          console.warn('[WebRTC] Received ICE candidate before remote description, ignoring');
+        }
+      } catch (error) {
+        console.error('[WebRTC] Failed to add ICE candidate:', error);
+      }
     })();
   }
   send(text) {

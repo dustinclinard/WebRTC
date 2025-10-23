@@ -9,7 +9,7 @@ import { MonitorComponent } from './monitor.component';
   imports: [CommonModule, PeerPaneComponent, MonitorComponent],
   template: `
   <div class="page-content">
-    <h1>WebRTC P2P Demo</h1>
+    <h1>WebRTC STUN/P2P Demo</h1>
     
     <div class="grid2">
       <app-peer-pane [config]="peerA()" [autoJoin]="true"></app-peer-pane>
