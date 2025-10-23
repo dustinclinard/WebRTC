@@ -6,3 +6,5 @@ dist/
 .DS_Store
 
 webapp/.angular/
+
+src/webapp/.angular/

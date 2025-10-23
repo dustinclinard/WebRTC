@@ -7,14 +7,19 @@
       "request": "launch",
       "preLaunchTask": "npm: start - webapp",
       "url": "http://localhost:4200/",
-      "webRoot": "${workspaceFolder}/webapp",
+      "webRoot": "${workspaceFolder}/src/webapp/src",
+      "sourceMaps": true,
       "sourceMapPathOverrides": {
-        "webpack:/*": "${webRoot}/*",
-        "/./*": "${webRoot}/*",
-        "/src/*": "${webRoot}/src/*",
-        "/*": "*",
-        "/./~/*": "${webRoot}/node_modules/*"
-      }
+        "webpack:///./src/*": "${webRoot}/*",
+        "webpack:///./*": "${webRoot}/*",
+        "webpack:/*": "${workspaceFolder}/src/webapp/*"
+      },
+      "skipFiles": [
+        "${workspaceFolder}/src/webapp/node_modules/**/*",
+        "<node_internals>/**/*"
+      ],
+      "smartStep": true,
+      "trace": true
     },
     {
       "name": "Debug STUN Server",
@@ -24,10 +29,14 @@
       "program": "${workspaceFolder}/dist/stun/server.js",
       "preLaunchTask": "build-ts",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
       "env": {
         "STUN_PORT": "3478",
         "STUN_HTTP_PORT": "8791"
-      }
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
     },
     {
       "name": "Debug Signaling Server",
@@ -37,9 +46,29 @@
       "program": "${workspaceFolder}/dist/signaling/server.js",
       "preLaunchTask": "build-ts",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
       "env": {
         "WS_PORT": "8081"
-      }
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Debug Angular (Demo Build)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/",
+      "webRoot": "${workspaceFolder}/src/webapp/src",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*",
+        "webpack:///./*": "${webRoot}/*",
+        "webpack:/*": "${workspaceFolder}/src/webapp/*"
+      },
+      "skipFiles": [
+        "${workspaceFolder}/src/webapp/node_modules/**/*"
+      ]
     },
     {
       "name": "Debug All (Full Demo)",
@@ -49,18 +78,27 @@
       "program": "${workspaceFolder}/tools/demo.js",
       "preLaunchTask": "build-all",
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
       "env": {
         "STUN_PORT": "3478",
         "STUN_HTTP_PORT": "8791",
         "WS_PORT": "8081",
         "STATIC_PORT": "8080"
-      }
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
     }
   ],
   "compounds": [
     {
       "name": "Debug Backend (STUN + Signaling)",
       "configurations": ["Debug STUN Server", "Debug Signaling Server"]
+    },
+    {
+      "name": "Debug All Projects",
+      "configurations": ["Debug STUN Server", "Debug Signaling Server", "Debug Angular App"],
+      "stopAll": true
     }
   ]
 }

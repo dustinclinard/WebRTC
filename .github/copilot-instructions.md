@@ -4,7 +4,7 @@
 This project implements a WebRTC demo with three main components:
 1. **STUN Server** (`src/stun/`) - UDP server for ICE candidate gathering with metrics
 2. **Signaling Server** (`src/signaling/`) - WebSocket server for WebRTC handshaking
-3. **Angular Web App** (`webapp/`) - Demo UI with peer-to-peer connectivity
+3. **Angular Web App** (`src/webapp/`) - Demo UI with peer-to-peer connectivity
 
 ### Key Design Patterns
 - **Service Isolation**: Each `PeerPaneComponent` gets its own `SignalingService` provider to isolate WebSocket connections
@@ -28,7 +28,7 @@ npm run demo:fast
 
 ### Build Architecture
 - `tools/demo.js` - Orchestrates full demo: builds Angular→`public/`, compiles TS→`dist/`, starts all servers
-- Angular builds to `webapp/dist/webrtc-demo/browser/` then copies to root `public/` for serving
+- Angular builds to `src/webapp/dist/webrtc-demo/browser/` then copies to root `public/` for serving
 - TypeScript compiles `src/` to `dist/` with separate server entry points
 
 ### Server Endpoints
@@ -69,10 +69,13 @@ type DcState = 'connecting'|'open'|'closing'|'closed'
 - Two-peer demo (`HomeComponent`) simulates Alice/Bob scenarios
 
 ## Critical Files
-- `webapp/src/app/shared/rtc.service.ts` - WebRTC session class with callback pattern
+- `src/webapp/src/app/shared/rtc.service.ts` - WebRTC session class with callback pattern
 - `src/signaling/SignalingServer.ts` - Room-based WebSocket signaling with typed messages
 - `src/stun/StunServer.ts` - UDP STUN server with dual IPv4/IPv6 sockets
 - `tools/demo.js` - Complete build & run orchestration with environment setup
 
-## Testing
-No automated tests. Manual testing via demo UI with Alice/Bob peer simulation at `http://localhost:8080/`.
+## Debugging & Testing
+- **Full VS Code debugging** configured for all 3 projects with TypeScript source maps
+- Use "Debug All Projects" compound config (F5) to debug everything at once
+- Breakpoints work in original `.ts` files in `src/stun/`, `src/signaling/`, `src/webapp/src/`
+- Manual testing via demo UI with Alice/Bob peer simulation at `http://localhost:8080/`

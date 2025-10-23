@@ -46,7 +46,7 @@ function cleanPublic(){
 }
 
 async function buildAngularToPublic({ cleanFirst = true } = {}){
-  const appDir = path.resolve(__dirname, '..', 'webapp');
+  const appDir = path.resolve(__dirname, '..', 'src', 'webapp');
   if (!fs.existsSync(path.join(appDir, 'package.json'))) {
     console.warn('[webapp] Angular app not found at', appDir);
     return;

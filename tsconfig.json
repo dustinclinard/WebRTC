@@ -8,6 +8,9 @@
     "strict": true,
     "moduleResolution": "node",
     "skipLibCheck": true,
+    "sourceMap": true,
+    "inlineSourceMap": false,
+    "inlineSources": true,
     "types": [
       "node"
     ]
