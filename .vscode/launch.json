@@ -1,0 +1,66 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Angular App",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "npm: start - webapp",
+      "url": "http://localhost:4200/",
+      "webRoot": "${workspaceFolder}/webapp",
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${webRoot}/*",
+        "/./*": "${webRoot}/*",
+        "/src/*": "${webRoot}/src/*",
+        "/*": "*",
+        "/./~/*": "${webRoot}/node_modules/*"
+      }
+    },
+    {
+      "name": "Debug STUN Server",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/dist/stun/server.js",
+      "preLaunchTask": "build-ts",
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "env": {
+        "STUN_PORT": "3478",
+        "STUN_HTTP_PORT": "8791"
+      }
+    },
+    {
+      "name": "Debug Signaling Server",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/dist/signaling/server.js",
+      "preLaunchTask": "build-ts",
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "env": {
+        "WS_PORT": "8081"
+      }
+    },
+    {
+      "name": "Debug All (Full Demo)",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/tools/demo.js",
+      "preLaunchTask": "build-all",
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "env": {
+        "STUN_PORT": "3478",
+        "STUN_HTTP_PORT": "8791",
+        "WS_PORT": "8081",
+        "STATIC_PORT": "8080"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Backend (STUN + Signaling)",
+      "configurations": ["Debug STUN Server", "Debug Signaling Server"]
+    }
+  ]
+}

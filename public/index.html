@@ -1,74 +1,12 @@
 <!doctype html>
-<html>
-<head>
-  <link rel="stylesheet" href="hacker.css" />
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebRTC Demo - (No Turn)</title>
-  
-</head>
-<body>
-  <h1>▮ WebRTC Demo - (No Turn)</h1>
-  <div class="row">
-    <label>Room <input id="room" value="demo" /></label>
-    <label>WS <input id="ws" value="ws://localhost:8081" /></label>
-    <label>STUN <input id="stun" value="stun:127.0.0.1:3478" /></label>
-    <label>STUN metrics <input id="stunHttp" value="http://localhost:8791/metrics" style="width:360px" /></label>
-    <button id="reload">Reload</button>
-    <button id="reconnect">Reconnect</button>
-  </div>
-
-  <div class="grid">
-    <div>
-      <h3>Alice <span id="dotA" class="status-dot dot-idle">●</span></h3>
-      <iframe id="alice"></iframe>
-    </div>
-    <div>
-      <h3>Bob <span id="dotB" class="status-dot dot-idle">●</span></h3>
-      <iframe id="bob"></iframe>
-    </div>
-  </div>
-
-  <div style="margin-top:16px">
-    <h3>Monitor</h3>
-    <iframe id="monitor" style="height:380px"></iframe>
-  </div>
-
-<script>
-const $ = (id)=>document.getElementById(id);
-function url(p, q){ const u = new URL(p, location.origin); Object.entries(q).forEach(([k,v])=>u.searchParams.set(k, v)); return u.href; }
-function setDot(el, state){
-  el.classList.remove('dot-open','dot-connecting','dot-closed','dot-idle');
-  const cls = state==='open' ? 'dot-open' : state==='closed' ? 'dot-closed' : 'dot-connecting';
-  el.classList.add(cls);
-}
-function setIframes(){
-  const ws = $('ws').value;
-  const stun = $('stun').value;
-  const room = $('room').value;
-  const stun_http = $('stunHttp').value;
-  $('alice').src = url('peer.html', { ws, stun, room, nick:'Alice', auto:'1' });
-  $('bob').src   = url('peer.html', { ws, stun, room, nick:'Bob',   auto:'1' });
-  $('monitor').src = url('monitor.html', { room, stun_http });
-}
-$('reload').onclick = setIframes;
-$('reconnect').onclick = ()=>{
-  $('alice').contentWindow && $('alice').contentWindow.postMessage({ cmd:'autojoin' }, '*');
-  $('bob').contentWindow && $('bob').contentWindow.postMessage({ cmd:'autojoin' }, '*');
-};
-
-window.addEventListener('message', (e)=>{
-  const ia = $('alice').contentWindow; const ib = $('bob').contentWindow;
-  if(!e || !e.source || !e.data) return;
-  if(e.source===ia){
-    if(e.data.type==='peer-status' && e.data.dc){ setDot($('dotA'), e.data.dc); }
-    if(e.data.type==='peer-status' && e.data.ice){ if(e.data.ice==='closed'||e.data.ice==='failed'||e.data.ice==='disconnected') setDot($('dotA'),'closed'); }
-  } else if(e.source===ib){
-    if(e.data.type==='peer-status' && e.data.dc){ setDot($('dotB'), e.data.dc); }
-    if(e.data.type==='peer-status' && e.data.ice){ if(e.data.ice==='closed'||e.data.ice==='failed'||e.data.ice==='disconnected') setDot($('dotB'),'closed'); }
-  }
-});
-window.addEventListener('load', setIframes);
-</script>
-</body>
+<html lang="en" data-critters-container>
+  <head>
+    <base href="/">
+    <meta charset="utf-8">
+    <title>WebRTC Angular Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>:root{--bg:#070a07;--bg2:#0b1310;--neon:#00ffa3;--neon-soft:#37ffb1;--neon-blue:#00eaff;--text:#d1ffe9;--muted:#78f0c4;--line:rgba(0,255,163,.14);--glow:0 0 8px rgba(0,255,163,.55), 0 0 18px rgba(0,255,163,.25);--danger:#ff3b84;--warn:#ffd166}*{box-sizing:border-box}html,body{height:100%}body{margin:16px;color:var(--text);background:radial-gradient(1200px 600px at 15% -20%,rgba(0,255,163,.06),transparent 60%),radial-gradient(1200px 600px at 85% 120%,rgba(0,234,255,.05),transparent 60%),linear-gradient(180deg,var(--bg),var(--bg2));font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.15px;text-shadow:0 0 1px rgba(0,0,0,.4);position:relative;overflow-y:overlay}body:after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#0000 0 2px,#0000000f 2px 3px);mix-blend-mode:multiply;animation:flicker 6s infinite steps(60)}@keyframes flicker{0%,to{opacity:.12}50%{opacity:.16}}</style><link rel="stylesheet" href="styles.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles.css"></noscript></head>
+  <body>
+    <app-root></app-root>
+  <script src="runtime.js" type="module"></script><script src="polyfills.js" type="module"></script><script src="main.js" type="module"></script></body>
 </html>

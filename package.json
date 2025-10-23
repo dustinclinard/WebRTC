@@ -4,8 +4,11 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "node tools/build.js && node node_modules/typescript/bin/tsc -p tsconfig.json",
-    "demo": "node tools/demo.js"
+    "build": "node tools/build.js && node node_modules/typescript/bin/tsc -p tsconfig.json && npm run clean:public && npm run webapp:build",
+    "demo": "node tools/demo.js",
+    "clean:public": "node tools/clean-public.js",
+    "webapp:build": "node tools/build-webapp.js",
+    "demo:fast": "node tools/demo.js --no-webapp"
   },
   "dependencies": {
     "rimraf": "^5.0.5",

@@ -2,6 +2,7 @@
 const { spawn } = require('node:child_process');
 const { access } = require('node:fs/promises');
 const path = require('node:path');
+const { buildAngularToPublic } = require('./build-webapp');
 
 const env = { ...process.env };
 env.STUN_PORT = env.STUN_PORT || "3478";
@@ -26,11 +27,14 @@ function runp(name, cmd, args, extraEnv = {}) {
 }
 
 (async () => {
-  // 1) Build first, wait until done
+  // 0) Build Angular into /public so it serves by default
+  await buildAngularToPublic({ cleanFirst: true });
+
+  // 1) Build TS services
   const tsc = path.resolve(__dirname, '..', 'node_modules/typescript/lib/tsc.js');
   await runp('build', 'node', [tsc, '-p', 'tsconfig.json']);
 
-  // 2) Verify build outputs exist
+  // 2) Verify outputs exist
   const stunOut = path.resolve(__dirname, '..', 'dist', 'stun', 'server.js');
   const sigOut  = path.resolve(__dirname, '..', 'dist', 'signaling', 'server.js');
   try { await access(stunOut); await access(sigOut); } catch (e) {
@@ -38,22 +42,21 @@ function runp(name, cmd, args, extraEnv = {}) {
     process.exit(1);
   }
 
-  // 3) Start everything else
-  run('static', 'node', [path.resolve(__dirname, 'serve-public.js'), path.resolve(__dirname, '..', 'public'), String(env.STATIC_PORT)], env);
-  run('stun', 'node', [stunOut], env);
-  run('signal', 'node', [sigOut], env);
+  // 3) Launch processes
+  const stun = run('stun', 'node', [stunOut]);
+  const sig  = run('signal', 'node', [sigOut]);
+  const web  = run('static', 'node', [path.resolve(__dirname, 'serve-public.js'), path.resolve(__dirname, '..', 'public'), env.STATIC_PORT]);
 
+  // 4) Announce
   console.log('Demo up:');
   console.log(`  STUN : udp://0.0.0.0:${env.STUN_PORT}`);
   console.log(`  STUN metrics : http://localhost:${env.STUN_HTTP_PORT}/metrics`);
   console.log(`  WS   : ws://localhost:${env.WS_PORT}`);
-  console.log(`  Web  : http://localhost:${env.STATIC_PORT}/index.html`);
+  console.log(`  Web  : http://localhost:${env.STATIC_PORT}/`);
+
+  // 5) Open browser
   setTimeout(() => {
-    const url = `http://localhost:${env.STATIC_PORT}/index.html?` +
-      `auto=1&room=demo&` +
-      `ws=${encodeURIComponent('ws://localhost:'+env.WS_PORT)}&` +
-      `stun=${encodeURIComponent('stun:127.0.0.1:'+env.STUN_PORT)}&` +
-      `stunHttp=${encodeURIComponent('http://localhost:'+env.STUN_HTTP_PORT+'/metrics')}`;
+    const url = `http://localhost:${env.STATIC_PORT}/`;
     openURL(url);
   }, 800);
 })().catch(err => {
