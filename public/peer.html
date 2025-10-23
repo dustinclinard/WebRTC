@@ -1,0 +1,254 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="hacker.css" />
+  <style>
+    /* compact layout so composer is visible without scrolling */
+    html, body { height:100%; }
+    body { margin:6px !important; }
+    .panel { display:grid; grid-template-rows:auto 1fr; gap:8px; height:100%; }
+    .header .tag { margin-right:6px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0; }
+    .content { display:grid; gap:8px; height:100%; min-height:0; }
+    .content.no-ice { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 1fr) auto; }
+    .content.has-ice { grid-template-columns: 2fr 1fr; grid-template-rows: minmax(120px, 1fr) auto; }
+    textarea { height:100%; resize:none; }
+    #log { grid-column:1; grid-row:1; min-height:120px; }
+    #icePanel { grid-column:2; grid-row:1 / span 2; display:none; }
+    .content.has-ice #icePanel { display:block; }
+    .composer { grid-column:1; grid-row:2; display:flex; gap:8px; align-items:center; }
+    .composer input { flex:1; }
+    h2 { margin:0 0 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="header">
+      <h2>▮ Client</h2>
+      <div class="toolbar">
+        <span class="tag" id="wsState">WS: idle</span>
+        <span class="tag" id="pcState">PC: idle</span>
+        <span class="tag" id="dcState">DC: idle</span>
+        <button id="join">Join</button>
+        <button id="hangup">Hang up</button>
+        <button id="icedump">Dump ICE</button>
+      </div>
+    </div>
+
+    <div class="content no-ice">
+      <textarea id="log" readonly></textarea>
+      <div id="icePanel"><textarea id="ice" placeholder="ICE Details" readonly></textarea></div>
+      <div class="composer">
+        <input id="chat" placeholder="type a message..." />
+        <button id="send" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const qp = new URLSearchParams(location.search);
+const room = qp.get('room') || 'demo';
+const wsURL = qp.get('ws') || 'ws://localhost:8081';
+const stunURL = qp.get('stun') || 'stun:127.0.0.1:3478';
+const nick = qp.get('nick') || 'peer';
+
+const $ = (id)=>document.getElementById(id);
+const _ser = (v)=>{ if (typeof v==='string') return v; try { return JSON.stringify(v); } catch { return String(v); } };
+const log = (...t)=>{ const el=$('log'); el.value += (t.map(_ser).join(' ')+'\n'); el.scrollTop = el.scrollHeight; }
+
+let ws = null;
+let pc = null;
+let dc = null;
+let isJoined = false;
+
+function setTag(id, text){ $(id).textContent = text; }
+function setDot(dcState){ try { window.parent.postMessage({ type:'peer-status', dc:dcState }, '*'); } catch {} }
+function updateIceState(){
+  if (!pc) return;
+  setTag('pcState', 'PC: '+pc.iceConnectionState);
+  try { window.parent.postMessage({ type:'peer-status', ice: pc.iceConnectionState }, '*'); } catch {}
+}
+function toggleIcePanel(show){
+  const content = document.querySelector('.content');
+  const panel = document.getElementById('icePanel');
+  if (!content || !panel) return;
+  content.classList.toggle('has-ice', !!show);
+  content.classList.toggle('no-ice', !show);
+  panel.style.display = show ? 'block' : 'none'; // fallback to ensure visibility
+}
+
+// --- WebRTC setup ---
+function bindDataChannel(){
+  setTag('dcState', 'DC: ' + (dc ? dc.readyState : 'closed'));
+  dc.onopen = ()=>{
+    $('send').disabled = false;  // enable send when DC opens
+    setTag('dcState', 'DC: open');
+    setDot('open');
+    log('[dc] open');
+  };
+  dc.onclose = ()=>{
+    $('send').disabled = true;
+    setTag('dcState', 'DC: closed');
+    setDot('closed');
+    log('[dc] closed');
+  };
+  dc.onmessage = (ev)=>{ log('recv: ' + ev.data); };
+}
+
+function setupPeerConnection(initiator){
+  const cfg = { iceServers: [{ urls: [stunURL] }] };
+  pc = new RTCPeerConnection(cfg);
+
+  pc.onicecandidate = (ev)=>{ if (ev.candidate) sendSignal({ candidate: ev.candidate }); };
+
+  pc.oniceconnectionstatechange = ()=>{
+    updateIceState();
+    if (pc.iceConnectionState === 'connected') startStatsLoop();
+    if (['closed','failed','disconnected'].includes(pc.iceConnectionState)) {
+      stopStatsLoop();
+      $('send').disabled = true; setTag('dcState', 'DC: closed'); setDot('closed');
+      log('[pc] '+pc.iceConnectionState);
+    }
+  };
+
+  pc.ondatachannel = (ev)=>{ dc = ev.channel; bindDataChannel(); };
+  if (initiator){ dc = pc.createDataChannel('chat'); bindDataChannel(); }
+}
+
+
+// --- signaling ---
+
+// send a signaling message over WS
+function sendSignal(data){
+  if (ws && ws.readyState === WebSocket.OPEN){
+    try { ws.send(JSON.stringify({ type:'signal', data })); } catch {}
+  }
+}
+
+
+// --- signaling ---
+function sendJoin(){
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'join', room, nick }));
+  }
+}
+
+function connectWS(){
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  ws = new WebSocket(wsURL);
+  ws.onopen = ()=>{ setTag('wsState','WS: connected'); ws.send(JSON.stringify({ type:'join', room, nick })); };
+  ws.onclose = ()=>{ setTag('wsState','WS: closed'); };
+  ws.onmessage = async (ev)=>{
+    let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.type === 'joined') {
+      isJoined = true;
+      log(`[joined] id=${msg.id} room=${msg.room}`);
+      const initiator = !!(qp.get('initiator') || (nick.toLowerCase().startsWith('a')));
+      setupPeerConnection(initiator);
+      if (initiator) {
+        const offer = await pc.createOffer({ offerToReceiveAudio:false, offerToReceiveVideo:false });
+        await pc.setLocalDescription(offer);
+        sendSignal({ sdp: pc.localDescription });
+      }
+    } else if (msg.type === 'peers'){
+      const peers = (msg.peers||[]).map(p => p && (p.nick ? `${p.id}(${p.nick})` : p.id)).join(', ');
+      log(`[peers] me=${msg.id} peers=[${peers}]`);
+    } else if (msg.type === 'signal' && msg.from && msg.data){
+      if (msg.data.sdp){
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+        if (msg.data.sdp.type === 'offer'){
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignal({ sdp: pc.localDescription });
+        }
+      } else if (msg.data.candidate){
+        try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
+      }
+    }
+  };
+}
+
+// helper used by auto-join and JOIN button
+function doJoin(){
+  if (ws && ws.readyState===WebSocket.OPEN) sendJoin();
+  else connectWS();
+}
+window.doJoin = doJoin;
+// --- UI handlers ---
+$('join').onclick = doJoin;
+
+$('hangup').onclick = () => {
+  try { if (dc) dc.close(); } catch {}
+  try { if (pc) pc.close(); } catch {}
+  
+  pc = undefined; dc = undefined; $('send').disabled = true;
+  $('ice').value = '';
+  toggleIcePanel(false);
+};
+
+$('send').onclick = () => {
+  if (dc && dc.readyState==='open') {
+    const t = $('chat').value;
+    dc.send(t);
+    log('send: '+t);
+    $('chat').value='';
+  }
+};
+$('chat').addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    $('send').click();
+  }
+});
+
+$('icedump').onclick = async () => {
+  if (!pc) return;
+  try{
+    const stats = await pc.getStats();
+    const arr = [];
+    stats.forEach(s => { if (['local-candidate','remote-candidate','candidate-pair'].includes(s.type)) arr.push(s); });
+    $('ice').value = JSON.stringify(arr, null, 2);
+  }catch(e){
+    $('ice').value = 'getStats failed: ' + (e && e.message || e);
+  }
+  toggleIcePanel(true);
+};
+
+// --- auto-join ---
+if (qp.get('auto') === '1') {
+  try { doJoin(); } catch {}
+  window.addEventListener('load', () => { try { doJoin(); } catch {} });
+  setTimeout(() => { try { doJoin(); } catch {} }, 500);
+}
+window.addEventListener('message', (e)=>{ if (e && e.data && e.data.cmd==='autojoin') { try { doJoin(); } catch {} } });
+
+let statsTimer = null;
+function startStatsLoop(){
+  stopStatsLoop();
+  statsTimer = setInterval(async () => {
+    if (!pc) return;
+    try {
+      const stats = await pc.getStats();
+      let pair = null; const byId = {};
+      stats.forEach(s => { byId[s.id] = s; if (s.type === 'candidate-pair' && s.nominated) pair = s; });
+      if (pair) {
+        const local = byId[pair.localCandidateId] || {};
+        const remote = byId[pair.remoteCandidateId] || {};
+        ('net', {
+          rttMs: pair.currentRoundTripTime ? Math.round(pair.currentRoundTripTime*1000) : undefined,
+          kbpsOut: pair.availableOutgoingBitrate ? Math.round(pair.availableOutgoingBitrate/1000) : undefined,
+          kbpsIn: pair.availableIncomingBitrate ? Math.round(pair.availableIncomingBitrate/1000) : undefined,
+          bytesSent: pair.bytesSent, bytesReceived: pair.bytesReceived,
+          localType: local.candidateType, remoteType: remote.candidateType
+        });
+      }
+    } catch {}
+  }, 1000);
+}
+function stopStatsLoop(){ if (statsTimer) { clearInterval(statsTimer); statsTimer = null; } }
+
+</script>
+</body>
+</html>
